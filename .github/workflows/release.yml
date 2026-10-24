@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'custom_components/**'
+      - 'hacs.json'
+      - '.github/workflows/release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Calculate semantic version
+        id: semver
+        uses: paulhatch/semantic-version@v6.0.2
+        with:
+          tag_prefix: "v"
+          major_pattern: "/(feat|fix|refactor)!:/"
+          minor_pattern: "/^feat:/"
+          version_format: "${major}.${minor}.${patch}"
+          bump_each_commit: true
+          search_commit_body: true
+
+      # HACS installs the zip attached to the release (hacs.json zip_release),
+      # so the version lands in the shipped manifest without a commit back to main.
+      - name: Build release zip
+        env:
+          VERSION: ${{ steps.semver.outputs.version }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib
+          path = pathlib.Path("custom_components/hoermoles_ble/manifest.json")
+          manifest = json.loads(path.read_text())
+          manifest["version"] = os.environ["VERSION"]
+          path.write_text(json.dumps(manifest, indent=2) + "\n")
+          PY
+          cd custom_components/hoermoles_ble
+          zip -r ../../hoermoles_ble.zip . -x '__pycache__/*'
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.semver.outputs.version_tag }}
+          name: ${{ steps.semver.outputs.version_tag }}
+          generate_release_notes: true
+          files: hoermoles_ble.zip

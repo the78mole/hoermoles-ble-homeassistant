@@ -1,0 +1,8 @@
+{
+  "name": "Hoermoles BLE (Hörmann BlueSecur)",
+  "homeassistant": "2026.10.0",
+  "zip_release": true,
+  "filename": "hoermoles_ble.zip",
+  "hide_default_branch": true,
+  "country": ["DE", "AT", "CH"]
+}

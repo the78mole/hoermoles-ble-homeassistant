@@ -1,0 +1,115 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "description": "Choose the drive to set up.",
+        "data": {
+          "address": "Drive"
+        }
+      },
+      "bluetooth_confirm": {
+        "description": "Set up {name} ({address})?"
+      },
+      "credentials": {
+        "description": "Status (position, movement, battery) is read from the drive's advertisement without any key. To open and close the door, Home Assistant needs the drive's key - register the drive once with the hoermoles-ble web app or CLI, then hand the key over here.",
+        "menu_options": {
+          "handoff": "Scan a QR code with the hoermoles-ble web app",
+          "paste": "Paste an exported key (HMOLES1…)",
+          "sensors_only": "Sensors only, no key"
+        }
+      },
+      "handoff": {
+        "description": "Scan this QR code with your phone camera or in the hoermoles-ble web app (Import tab), choose the drive {address} and confirm. The key is encrypted for this setup only and sent to Home Assistant. Then press Submit here.\n\nThe phone must be able to reach Home Assistant at the address below - change it if needed and press Submit to get a new QR code.",
+        "data": {
+          "qr_code": "QR code",
+          "ha_url": "Home Assistant address as seen from the phone"
+        }
+      },
+      "paste": {
+        "description": "Export the key with `hoermoles-ble export --stdout` (CLI) or from the web app's Export tab and paste it here. The bundle must contain the drive {address}.",
+        "data": {
+          "bundle": "Key bundle",
+          "passphrase": "Passphrase (only for encrypted bundles, HMOLES1E…)"
+        }
+      }
+    },
+    "error": {
+      "invalid_bundle": "This is not a valid hoermoles key bundle.",
+      "invalid_passphrase": "Could not decrypt the bundle - wrong passphrase?",
+      "passphrase_required": "This bundle is encrypted - enter its passphrase.",
+      "wrong_device": "The bundle does not contain a key for this drive.",
+      "not_received": "No key received yet. Scan the QR code and confirm in the web app first.",
+      "url_required": "Enter the address under which the phone reaches Home Assistant."
+    },
+    "abort": {
+      "already_configured": "Device is already configured",
+      "no_devices_found": "No devices found on the network",
+      "reconfigure_successful": "Re-configuration was successful"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "discrete_open_close": "Use direction channels for open/close (unverified)"
+        },
+        "data_description": {
+          "discrete_open_close": "By default open, close and stop send the verified impulse channel. The direction channels 4/5 are reverse-engineered but not verified on real hardware."
+        }
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "moving": {
+        "name": "Moving"
+      },
+      "maintenance_required": {
+        "name": "Maintenance required"
+      },
+      "protection_active": {
+        "name": "Protection active"
+      },
+      "vacation_mode": {
+        "name": "Vacation mode"
+      },
+      "emergency_mode": {
+        "name": "Emergency mode"
+      },
+      "warning_time": {
+        "name": "Warning time"
+      },
+      "admins_can_be_teached": {
+        "name": "Accepting registration"
+      }
+    },
+    "button": {
+      "impulse": {
+        "name": "Impulse"
+      },
+      "partial": {
+        "name": "Partial opening"
+      },
+      "ventilation": {
+        "name": "Ventilation position"
+      },
+      "light": {
+        "name": "Light (unverified)"
+      }
+    },
+    "sensor": {
+      "position": {
+        "name": "Position"
+      }
+    }
+  },
+  "exceptions": {
+    "no_connectable_path": {
+      "message": "No Bluetooth adapter or proxy that can connect to {address} is in range. Sensors keep working, but control needs a connectable adapter."
+    },
+    "command_failed": {
+      "message": "Sending the command to {address} failed: {error}"
+    }
+  }
+}

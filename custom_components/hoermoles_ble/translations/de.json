@@ -1,0 +1,91 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "description": "Wähle den Antrieb, der eingerichtet werden soll.",
+        "data": {
+          "address": "Antrieb"
+        }
+      },
+      "bluetooth_confirm": {
+        "description": "{name} ({address}) einrichten?"
+      },
+      "credentials": {
+        "description": "Der Status (Position, Bewegung, Batterie) wird ohne Schlüssel aus dem Advertisement des Antriebs gelesen. Zum Öffnen und Schließen braucht Home Assistant den Schlüssel des Antriebs – registriere den Antrieb einmal mit der hoermoles-ble Web-App oder dem CLI und übergib den Schlüssel dann hier.",
+        "menu_options": {
+          "handoff": "QR-Code mit der hoermoles-ble Web-App scannen",
+          "paste": "Exportierten Schlüssel einfügen (HMOLES1…)",
+          "sensors_only": "Nur Sensoren, ohne Schlüssel"
+        }
+      },
+      "handoff": {
+        "description": "Scanne diesen QR-Code mit der Handykamera oder in der hoermoles-ble Web-App (Reiter Import), wähle den Antrieb {address} und bestätige. Der Schlüssel wird nur für diese Einrichtung verschlüsselt und an Home Assistant geschickt. Danach hier auf Absenden drücken.\n\nDas Handy muss Home Assistant unter der Adresse unten erreichen – bei Bedarf ändern und Absenden drücken, um einen neuen QR-Code zu erhalten.",
+        "data": {
+          "qr_code": "QR-Code",
+          "ha_url": "Adresse von Home Assistant aus Sicht des Handys"
+        }
+      },
+      "paste": {
+        "description": "Exportiere den Schlüssel mit `hoermoles-ble export --stdout` (CLI) oder im Reiter Export der Web-App und füge ihn hier ein. Das Bundle muss den Antrieb {address} enthalten.",
+        "data": {
+          "bundle": "Schlüssel-Bundle",
+          "passphrase": "Passphrase (nur für verschlüsselte Bundles, HMOLES1E…)"
+        }
+      }
+    },
+    "error": {
+      "invalid_bundle": "Das ist kein gültiges hoermoles-Schlüssel-Bundle.",
+      "invalid_passphrase": "Das Bundle konnte nicht entschlüsselt werden – falsche Passphrase?",
+      "passphrase_required": "Dieses Bundle ist verschlüsselt – bitte die Passphrase eingeben.",
+      "wrong_device": "Das Bundle enthält keinen Schlüssel für diesen Antrieb.",
+      "not_received": "Noch kein Schlüssel empfangen. Erst den QR-Code scannen und in der Web-App bestätigen.",
+      "url_required": "Gib die Adresse an, unter der das Handy Home Assistant erreicht."
+    },
+    "abort": {
+      "already_configured": "Gerät ist bereits konfiguriert",
+      "no_devices_found": "Keine Geräte im Netzwerk gefunden",
+      "reconfigure_successful": "Die Neukonfiguration war erfolgreich"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "discrete_open_close": "Richtungskanäle für Öffnen/Schließen verwenden (unverifiziert)"
+        },
+        "data_description": {
+          "discrete_open_close": "Standardmäßig senden Öffnen, Schließen und Stopp den verifizierten Impuls-Kanal. Die Richtungskanäle 4/5 sind per Reverse Engineering ermittelt, aber nicht an echter Hardware verifiziert."
+        }
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "moving": { "name": "In Bewegung" },
+      "maintenance_required": { "name": "Wartung erforderlich" },
+      "protection_active": { "name": "Schutz aktiv" },
+      "vacation_mode": { "name": "Urlaubsmodus" },
+      "emergency_mode": { "name": "Notbetrieb" },
+      "warning_time": { "name": "Vorwarnzeit" },
+      "admins_can_be_teached": { "name": "Registrierung möglich" }
+    },
+    "button": {
+      "impulse": { "name": "Impuls" },
+      "partial": { "name": "Teilöffnung" },
+      "ventilation": { "name": "Lüftungsstellung" },
+      "light": { "name": "Licht (unverifiziert)" }
+    },
+    "sensor": {
+      "position": { "name": "Position" }
+    }
+  },
+  "exceptions": {
+    "no_connectable_path": {
+      "message": "Kein Bluetooth-Adapter oder -Proxy in Reichweite, der sich mit {address} verbinden kann. Die Sensoren funktionieren weiter, zur Steuerung ist ein verbindungsfähiger Adapter nötig."
+    },
+    "command_failed": {
+      "message": "Senden des Befehls an {address} fehlgeschlagen: {error}"
+    }
+  }
+}

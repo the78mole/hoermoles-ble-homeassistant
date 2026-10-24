@@ -1,0 +1,38 @@
+[project]
+name = "hoermoles-ble-homeassistant"
+version = "0.0.0"
+description = "Home Assistant integration for Hoermann BlueSecur garage door drives (dev environment only, not published)"
+readme = "README.md"
+requires-python = ">=3.14.2"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "hoermoles-ble[bleak]==0.12.1",
+    "pytest-homeassistant-custom-component==0.13.374",
+    # requirements of the usb integration, which bluetooth depends on
+    "aiousbwatcher==1.1.2",
+    "serialx==1.11.0",
+    "ruff>=0.14",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 120
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "ASYNC", "RUF", "SIM"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["custom_components"]
+known-third-party = ["hoermoles_ble", "homeassistant"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "--cov=custom_components.hoermoles_ble --cov-report=term-missing --cov-fail-under=80"

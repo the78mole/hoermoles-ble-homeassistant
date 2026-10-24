@@ -1,0 +1,19 @@
+{
+  "domain": "hoermoles_ble",
+  "name": "Hoermoles BLE (Hörmann BlueSecur)",
+  "bluetooth": [
+    {
+      "manufacturer_id": 1972
+    }
+  ],
+  "codeowners": ["@the78mole"],
+  "config_flow": true,
+  "dependencies": ["bluetooth_adapters", "http"],
+  "documentation": "https://github.com/the78mole/hoermoles-ble-homeassistant",
+  "integration_type": "device",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/the78mole/hoermoles-ble-homeassistant/issues",
+  "loggers": ["hoermoles_ble"],
+  "requirements": ["hoermoles-ble[bleak]==0.12.1"],
+  "version": "0.0.0"
+}
