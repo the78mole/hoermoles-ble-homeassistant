@@ -64,8 +64,9 @@ Then choose how the key gets into Home Assistant:
    [web app](https://the78mole.github.io/hoermoles-ble/app/), then press
    *Submit* in HA. The key is end-to-end encrypted for this one setup (ECDH P-256
    + AES-GCM), so plain `http://` on the LAN is fine. Protocol:
-   [docs/key-handoff.md](docs/key-handoff.md).
-   *The web app side of this is not released yet; until then, use option 2.*
+   [docs/key-handoff.md](docs/key-handoff.md). The drive must be stored in the
+   app with *allow re-export* (the default after registering there). *The web app
+   release with this support is still pending; until it is live, use option 2.*
 2. **Paste an exported key**, from `hoermoles-ble export --stdout` (CLI) or the
    web app's *Export* tab. `HMOLES1E:…` bundles additionally ask for their
    passphrase.

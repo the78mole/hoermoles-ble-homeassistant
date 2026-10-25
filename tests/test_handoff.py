@@ -148,3 +148,11 @@ async def test_view_rejects_oversized_body(hass: HomeAssistant, hass_client_no_a
     client = await hass_client_no_auth()
     response = await client.post(session.path, data="A" * 20000)
     assert response.status == HTTPStatus.REQUEST_ENTITY_TOO_LARGE
+
+
+def test_shared_vector_is_current() -> None:
+    """The web app runs its WebCrypto port against this exact file - regenerate
+    with scripts/generate_handoff_vector.py and copy it over when this fails."""
+    from scripts.generate_handoff_vector import FIXTURE, build
+
+    assert json.loads(FIXTURE.read_text()) == build()

@@ -76,14 +76,22 @@ def derive_key(shared_secret: bytes, ha_pub: bytes, client_pub: bytes) -> bytes:
     return HKDF(algorithm=hashes.SHA256(), length=32, salt=ha_pub + client_pub, info=HKDF_INFO).derive(shared_secret)
 
 
-def encrypt_envelope(ha_pub: bytes, token: str, plaintext: bytes) -> bytes:
+def encrypt_envelope(
+    ha_pub: bytes,
+    token: str,
+    plaintext: bytes,
+    *,
+    client_key: ec.EllipticCurvePrivateKey | None = None,
+    nonce: bytes | None = None,
+) -> bytes:
     """Client side of the envelope - what the web app implements in WebCrypto.
-    Lives here for the tests and as the executable reference of the spec."""
-    client_key = ec.generate_private_key(ec.SECP256R1())
+    Lives here for the tests and as the executable reference of the spec;
+    `client_key` and `nonce` are fixed only to generate the shared test vector."""
+    client_key = client_key or ec.generate_private_key(ec.SECP256R1())
     client_pub = public_key_bytes(client_key.public_key())
     peer = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), ha_pub)
     aes_key = derive_key(client_key.exchange(ec.ECDH(), peer), ha_pub, client_pub)
-    nonce = secrets.token_bytes(_NONCE_SIZE)
+    nonce = nonce or secrets.token_bytes(_NONCE_SIZE)
     ciphertext = AESGCM(aes_key).encrypt(nonce, plaintext, ENVELOPE_MAGIC + token.encode("ascii"))
     return ENVELOPE_MAGIC + client_pub + nonce + ciphertext
 

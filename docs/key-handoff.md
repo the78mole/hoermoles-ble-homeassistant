@@ -1,8 +1,9 @@
 # Key handoff: hoermoles-ble web app → Home Assistant
 
-Status: **HA side implemented** (`custom_components/hoermoles_ble/handoff.py`,
-tests in `tests/test_handoff.py`). **Web app side still to do** in
-[`the78mole/hoermoles-ble`](https://github.com/the78mole/hoermoles-ble) (`spa/`).
+Status: **both sides implemented.** HA: `custom_components/hoermoles_ble/handoff.py`,
+tests in `tests/test_handoff.py`. Web app:
+[`the78mole/hoermoles-ble`](https://github.com/the78mole/hoermoles-ble) `spa/`
+(`hoermoles-ble-js/src/handoff.ts`, `webapp/src/components/HandoffPanel.svelte`).
 
 Goal: in the HA config flow, scan a QR code with your phone, confirm in the web
 app, and the drive's key ends up in Home Assistant, with no copy-pasting of
@@ -84,10 +85,18 @@ by the existing `encodeBundle()` without a passphrase. Normally it holds a singl
 entry, the drive from `a`. The AAD binds the ciphertext to this one token.
 
 The executable reference of steps 1-7 is `encrypt_envelope()` in
-`custom_components/hoermoles_ble/handoff.py`. A shared test vector should be added
-to `shared/test-vectors.json` once the TS side exists. Because ECDH involves
-randomness on both sides, the vector should fix the HA private key and the client
-private key plus nonce, and check the envelope byte for byte.
+`custom_components/hoermoles_ble/handoff.py`. Because ECDH involves randomness on
+both sides, the shared test vector fixes the HA key, the client key and the nonce,
+and the TypeScript side checks the envelope byte for byte:
+
+```bash
+PYTHONPATH=. uv run python scripts/generate_handoff_vector.py \
+    ../../ReverseEng/HoermannBlueSecur/shared/handoff-vectors.json
+```
+
+This writes `tests/fixtures/handoff_vector.json` (guarded by
+`test_shared_vector_is_current`) and the web app's copy
+`shared/handoff-vectors.json`. The two must stay identical.
 
 ## Delivery
 
@@ -113,26 +122,27 @@ HA's responses (plain text, shown by the page):
 | 409 | A key was already received for this QR code. |
 | 413 | Payload over 16 KiB. |
 
-## Web app changes needed (hoermoles-ble `spa/`)
+## Web app side
 
-1. **Entry points:** handle `#ha=` at startup, just like the existing `#import=`
-   handling. Also accept the full link in the existing QR scanner
-   (`QrCapture`), so scanning from inside the app works too.
-2. **"Send to Home Assistant" panel:** show `n`, the target host from `u`, and
-   the drive list with `a` preselected. Warn loudly when `u` is not on a private
-   or `.local` address, or when it is not `http(s)`. Confirm, then build the
-   envelope and navigate.
-3. **Extractable keys:** non-extractable drives cannot be sent. Options, in
-   order of preference:
-   - offer "Send to Home Assistant" right after **registration**, while the raw
-     key is still in memory;
-   - for drives imported or registered with *allow re-export*, use the stored
-     raw key;
-   - otherwise explain why it is not possible and point to a fresh export from
-     the CLI or re-registration.
-4. **Crypto module:** add `handoff.ts` next to `bundle.ts` in `hoermoles-ble-js`
-   (ECDH/HKDF/AES-GCM as above) plus a shared test vector against the Python
-   reference.
-5. **CSP stays as is.** No `connect-src` or `form-action` change is needed. Should
-   a future version want a confirmation back in the app, `connect-src` would
-   have to be opened for arbitrary LAN hosts. That is deliberately not part of v1.
+- **Entry points:** `#ha=` at startup (`App.svelte`, stripped from the address
+  bar right away). The QR scanners in *Add* and *Export* accept the same link,
+  and so does pasting it into the import field.
+- **Panel** (`HandoffPanel.svelte`): shows `n`, the target host and the drive
+  `a`. There is no drive list, because HA rejects every other drive. A host
+  that is not loopback, RFC 1918, link-local, CGNAT/Tailscale, ULA or
+  `.local`/`.lan`/`.home.arpa`/`.internal` gets a loud warning, since that is what
+  a planted QR code would use. Plain `http` gets an explanation, not a warning.
+- **Strict parsing** (`parseHandoffLink`): only `v: 1`; only `http(s)` URLs with
+  no credentials, query or fragment, whose path ends in
+  `/api/hoermoles_ble/handoff/<43-char token>`; only an uncompressed 65-byte key;
+  only a well-formed MAC.
+- **Extractable keys only.** A drive stored without *allow re-export* cannot be
+  sent, and the panel says why. Registration in the app defaults to re-export
+  *on*, so freshly registered drives work. Keeping the raw key in memory after
+  registration just for the handoff was deliberately not done.
+- **Delivery:** `window.open(u#p=…, "_blank", "noopener,noreferrer")` right after
+  encrypting, plus a plain link as a fallback in case the browser blocked the
+  pop-up.
+- **CSP unchanged.** No `connect-src` or `form-action` change. Should a future
+  version want a confirmation back in the app, `connect-src` would have to be
+  opened for arbitrary LAN hosts. That is deliberately not part of v1.
