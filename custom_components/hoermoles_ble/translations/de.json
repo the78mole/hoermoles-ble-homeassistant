@@ -20,7 +20,7 @@
         }
       },
       "handoff": {
-        "description": "Scanne diesen QR-Code mit der Handykamera oder in der hoermoles-ble Web-App (Reiter Import), wähle den Antrieb {address} und bestätige. Der Schlüssel wird nur für diese Einrichtung verschlüsselt und an Home Assistant geschickt. Danach hier auf Absenden drücken.\n\nDas Handy muss Home Assistant unter der Adresse unten erreichen – bei Bedarf ändern und Absenden drücken, um einen neuen QR-Code zu erhalten.",
+        "description": "Scanne diesen QR-Code mit der Handykamera oder in der hoermoles-ble Web-App (Reiter Add oder Export), prüfe, dass nach dem Antrieb {address} gefragt wird, und bestätige. Der Schlüssel wird nur für diese Einrichtung verschlüsselt und an Home Assistant geschickt. Danach hier auf Absenden drücken.\n\nDas Handy muss Home Assistant unter der Adresse unten erreichen – bei Bedarf ändern und Absenden drücken, um einen neuen QR-Code zu erhalten.",
         "data": {
           "qr_code": "QR-Code",
           "ha_url": "Adresse von Home Assistant aus Sicht des Handys"

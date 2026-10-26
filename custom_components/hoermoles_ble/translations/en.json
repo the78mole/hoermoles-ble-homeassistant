@@ -20,7 +20,7 @@
         }
       },
       "handoff": {
-        "description": "Scan this QR code with your phone camera or in the hoermoles-ble web app (Import tab), choose the drive {address} and confirm. The key is encrypted for this setup only and sent to Home Assistant. Then press Submit here.\n\nThe phone must be able to reach Home Assistant at the address below - change it if needed and press Submit to get a new QR code.",
+        "description": "Scan this QR code with your phone camera or in the hoermoles-ble web app (Add or Export tab), check that it asks for the drive {address} and confirm. The key is encrypted for this setup only and sent to Home Assistant. Then press Submit here.\n\nThe phone must be able to reach Home Assistant at the address below - change it if needed and press Submit to get a new QR code.",
         "data": {
           "qr_code": "QR code",
           "ha_url": "Home Assistant address as seen from the phone"

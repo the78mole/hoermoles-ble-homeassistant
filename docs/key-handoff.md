@@ -106,8 +106,7 @@ The app navigates to
 <u>#p=<base64url(envelope), no padding>
 ```
 
-ideally in a new tab (`window.open(url, "_blank", "noopener")`) so the app keeps
-its state. The fragment is not sent in the GET request, so the ciphertext stays
+ideally in a new tab (a `target="_blank"` link) so the app keeps its state. The fragment is not sent in the GET request, so the ciphertext stays
 out of proxy and access logs. HA's page reads it, removes it from the history
 entry via `history.replaceState`, and POSTs it as `text/plain` to the same URL.
 That request is same-origin, so it needs no CORS and touches no app CSP.
@@ -140,9 +139,10 @@ HA's responses (plain text, shown by the page):
   sent, and the panel says why. Registration in the app defaults to re-export
   *on*, so freshly registered drives work. Keeping the raw key in memory after
   registration just for the handoff was deliberately not done.
-- **Delivery:** `window.open(u#p=…, "_blank", "noopener,noreferrer")` right after
-  encrypting, plus a plain link as a fallback in case the browser blocked the
-  pop-up.
+- **Delivery:** the envelope is computed as soon as the panel shows the drive,
+  and *Send* is a plain `<a href="u#p=…" target="_blank" rel="noopener noreferrer">`.
+  A link the user taps is never pop-up blocked, unlike `window.open()` after an
+  `await` (iOS Safari). Nothing leaves the phone before the tap.
 - **CSP unchanged.** No `connect-src` or `form-action` change. Should a future
   version want a confirmation back in the app, `connect-src` would have to be
   opened for arbitrary LAN hosts. That is deliberately not part of v1.
