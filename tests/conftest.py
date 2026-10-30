@@ -51,22 +51,25 @@ def long_packet(**kwargs) -> bytes:
     return full_payload(**kwargs)[6:23]
 
 
-def service_info(payload: bytes, address: str = ADDRESS, rssi: int = -60) -> BluetoothServiceInfoBleak:
+def service_info(
+    payload: bytes | None, address: str = ADDRESS, rssi: int = -60, name: str = "Hoermann"
+) -> BluetoothServiceInfoBleak:
+    """An advertisement; payload None for one without manufacturer data (the simulator)."""
     from bleak.backends.device import BLEDevice
     from bleak.backends.scanner import AdvertisementData
 
-    manufacturer_data = {MANUFACTURER_ID: payload}
+    manufacturer_data = {} if payload is None else {MANUFACTURER_ID: payload}
     return BluetoothServiceInfoBleak(
-        name="Hoermann",
+        name=name,
         address=address,
         rssi=rssi,
         manufacturer_data=manufacturer_data,
         service_data={},
         service_uuids=[],
         source="local",
-        device=BLEDevice(address, "Hoermann", None),
+        device=BLEDevice(address, name, None),
         advertisement=AdvertisementData(
-            local_name="Hoermann",
+            local_name=name,
             manufacturer_data=manufacturer_data,
             service_data={},
             service_uuids=[],
@@ -81,8 +84,8 @@ def service_info(payload: bytes, address: str = ADDRESS, rssi: int = -60) -> Blu
     )
 
 
-def inject(hass: HomeAssistant, payload: bytes, address: str = ADDRESS) -> None:
-    _get_manager(hass).scanner_adv_received(service_info(payload, address))
+def inject(hass: HomeAssistant, payload: bytes | None, address: str = ADDRESS, name: str = "Hoermann") -> None:
+    _get_manager(hass).scanner_adv_received(service_info(payload, address, name=name))
 
 
 def bundle_entry(address: str = ADDRESS, label: str | None = "Garage") -> BundleEntry:

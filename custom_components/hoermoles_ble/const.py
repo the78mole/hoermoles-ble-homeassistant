@@ -39,6 +39,12 @@ CHANNEL_VENTILATION: Final = 6
 # shortly after the command anyway.
 CONTROL_TIMEOUT: Final = 20.0
 
+# Seconds for the registration exchange itself (both steps). A drive outside
+# teach mode doesn't answer at all, and HoermannClient.register() would then
+# wait a hardcoded 20 s for the first ack. How fast a real drive acks is not
+# measured - its RSA decryption should take well under this.
+REGISTER_TIMEOUT: Final = 10.0
+
 # Key handoff from the hoermoles-ble web app (see docs/key-handoff.md).
 HANDOFF_URL_BASE: Final = "/api/hoermoles_ble/handoff"
 HANDOFF_SPA_URL: Final = "https://the78mole.github.io/hoermoles-ble/app/"

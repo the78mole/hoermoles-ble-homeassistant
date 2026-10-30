@@ -41,7 +41,7 @@ def credentials_from_entry(entry: ConfigEntry) -> Credentials | None:
 async def async_setup_entry(hass: HomeAssistant, entry: HoermolesConfigEntry) -> bool:
     coordinator = HoermolesCoordinator(hass, entry)
     credentials = credentials_from_entry(entry)
-    controller = DriveController(hass, credentials, entry.title) if credentials else None
+    controller = DriveController(hass, credentials, entry.title, coordinator) if credentials else None
     entry.runtime_data = HoermolesData(coordinator=coordinator, controller=controller)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

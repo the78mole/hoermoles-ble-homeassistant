@@ -70,11 +70,17 @@ Then choose how the key gets into Home Assistant:
 2. **Paste an exported key**, from `hoermoles-ble export --stdout` (CLI) or the
    web app's *Export* tab. `HMOLES1E:…` bundles additionally ask for their
    passphrase.
-3. **Sensors only.** Add a key later via the entry's *Reconfigure*.
+3. **Register with the drive's QR label** (advanced). Scan the label on the
+   drive with your phone and paste its text (31 digits followed by the drive's
+   public key). Home Assistant then registers itself as a new admin over
+   Bluetooth and stores the key. The drive must be in teach mode first: menu 19,
+   parameter 02, which **deletes all existing admins** (e.g. the Hörmann
+   BlueSecur app). A drive outside teach mode doesn't answer; HA gives up after
+   10 s with a hint. Needs a connectable adapter or proxy in range.
+4. **Sensors only.** Add a key later via the entry's *Reconfigure*.
 
-The drive must be registered once, with the
-[CLI](https://pypi.org/project/hoermoles-ble-cli/) or the web app. Registration
-from within Home Assistant is not supported (yet).
+Options 1 and 2 need a drive registered once with the
+[CLI](https://pypi.org/project/hoermoles-ble-cli/) or the web app.
 
 ## Security
 
@@ -104,6 +110,38 @@ patch). The release workflow writes the version into `manifest.json` and attache
 
 The `hoermoles-ble` version is pinned in `manifest.json` (`requirements`) and in
 `pyproject.toml` (dev). Bump both together.
+
+### Simulated drive
+
+[hoerfrau](https://github.com/DennyWeinberg/hoerfrau-ble) simulates a drive. The
+registration tests run against it in-process (`LoopbackTransport`), and on a Mac
+it runs as a real BLE peripheral for testing with a live Home Assistant. macOS
+can't advertise manufacturer data, so the simulator is recognized by its local
+name instead: a debug matcher in `manifest.json` and
+[simulator.py](custom_components/hoermoles_ble/simulator.py) handle names
+starting with `HFSIM` only. They read the would-be advertisement from a debug
+characteristic: during registration, and for the sensors every 30 s (5 s while
+the door moves, and about 1 s after a command), over a short BLE connection that
+shares the command lock. Real drives never take this path.
+
+Live test with Home Assistant:
+
+1. Start the simulator with the short name: `uv run hoerfrau run --name HFSIM`.
+   The default `HFSIM` + 4 serial digits doesn't fit into the 31-byte
+   advertisement next to the flags, TX power and 128-bit service UUID that macOS
+   puts in, and macOS then drops the name instead of sending it in a scan
+   response, so HA never sees it. Bare `HFSIM` fits exactly.
+2. Set HA's Bluetooth adapter to **active** scanning (Settings → Devices &
+   services → Bluetooth → *Configure*). In `auto` mode the name of the
+   simulator was not picked up.
+3. HA discovers *Hörmann `<Mac address>`* → *Register with the drive's QR label*
+   → paste the label the simulator printed (`reset` in its console opens teach
+   mode).
+
+The Mac advertises from its public address with flags that say it also speaks
+Bluetooth Classic, so BlueZ tries a BR/EDR connection (`br-connection-unknown`).
+For `HFSIM` devices the integration sets BlueZ's `PreferredBearer` to `le`
+before connecting. A real drive advertises as LE only.
 
 ## License
 

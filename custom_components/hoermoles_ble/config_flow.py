@@ -2,18 +2,39 @@
 
 A drive is found by its advertisement (discovery or a pick list). The key is
 then imported - pasted as a hoermoles credential bundle, or handed over from the
-hoermoles-ble web app by scanning a QR code (see handoff.py) - or skipped, which
-leaves a fully working sensors-only entry that can get a key later through
-"reconfigure".
+hoermoles-ble web app by scanning a QR code (see handoff.py) - or created right
+here by registering with the drive's QR label, or skipped, which leaves a fully
+working sensors-only entry that can get a key later through "reconfigure".
 """
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import probatio
-from hoermoles_ble import AdvertisementInfo, BundleEntry, BundleError, decode_bundle, is_encrypted_bundle
-from homeassistant.components.bluetooth import BluetoothServiceInfoBleak, async_discovered_service_info
+from bleak.exc import BleakError
+from cryptography.exceptions import UnsupportedAlgorithm
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
+from hoermoles_ble import (
+    AdvertisementInfo,
+    BundleEntry,
+    BundleError,
+    DeviceInfo,
+    decode_bundle,
+    is_encrypted_bundle,
+    product_class_and_id_from_qr_prefix,
+    serial_no_from_qr_prefix,
+)
+from hoermoles_ble.advertisement import PRODUCT_TYPE_NAMES
+from hoermoles_ble.crypto_rsa import load_device_public_key
+from hoermoles_ble.protocol import parse_qr_code
+from homeassistant.components.bluetooth import (
+    BluetoothServiceInfoBleak,
+    async_ble_device_from_address,
+    async_discovered_service_info,
+    async_last_service_info,
+)
 from homeassistant.config_entries import (
     SOURCE_RECONFIGURE,
     ConfigEntry,
@@ -45,12 +66,17 @@ from .const import (
     DOMAIN,
     MANUFACTURER_ID,
 )
+from .controller import async_register
 from .handoff import HandoffSession, async_get_registry
+from .simulator import async_read_advertisement, is_simulator
+
+_LOGGER = logging.getLogger(__name__)
 
 CONF_BUNDLE = "bundle"
 CONF_PASSPHRASE = "passphrase"
 CONF_HA_URL = "ha_url"
 CONF_QR_CODE = "qr_code"
+CONF_QR_LABEL = "qr_label"
 
 CREDENTIAL_KEYS = (CONF_ROOT_ID, CONF_ROOT_KEY, CONF_QR_PREFIX)
 
@@ -67,10 +93,39 @@ def _product_data(info: AdvertisementInfo | None) -> dict[str, Any]:
 
 
 def _parse_service_info(service_info: BluetoothServiceInfoBleak) -> AdvertisementInfo | None:
+    # The simulator sends no manufacturer data: None here, its advertisement is
+    # read over GATT where it matters (see _async_advertisement).
     payload = service_info.manufacturer_data.get(MANUFACTURER_ID)
     if payload is None:
         return None
     return AdvertisementInfo.from_scan(service_info.address, service_info.rssi, [payload])
+
+
+def _parse_qr_label(text: str) -> tuple[str, int] | None:
+    """(prefix, serial) of a drive's QR label - 31 digits followed by the
+    drive's RSA public key in base64 - or None if the text isn't one."""
+    try:
+        prefix, der = parse_qr_code(text)
+        public_key = load_device_public_key(der)
+    except ValueError, UnsupportedAlgorithm:  # binascii.Error is a ValueError
+        return None
+    serial_no = serial_no_from_qr_prefix(prefix)
+    if serial_no is None or not isinstance(public_key, RSAPublicKey):
+        return None
+    return prefix, serial_no
+
+
+def _device_info_from_qr(address: str, prefix: str, serial_no: int) -> DeviceInfo | None:
+    if (product := product_class_and_id_from_qr_prefix(prefix)) is None:
+        return None
+    product_class, product_id = product
+    return DeviceInfo(
+        device_address=address,
+        product_class=product_class,
+        product_id=product_id,
+        product_name=PRODUCT_TYPE_NAMES.get(product) or PRODUCT_TYPE_NAMES.get((product_class, None)),
+        serial_no=serial_no,
+    )
 
 
 class HoermolesConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -118,7 +173,8 @@ class HoermolesConfigFlow(ConfigFlow, domain=DOMAIN):
 
         configured = self._async_current_ids(include_ignore=False)
         for service_info in async_discovered_service_info(self.hass, connectable=False):
-            if MANUFACTURER_ID in service_info.manufacturer_data and service_info.address not in configured:
+            is_drive = MANUFACTURER_ID in service_info.manufacturer_data or is_simulator(service_info)
+            if is_drive and service_info.address not in configured:
                 self._discovered[service_info.address] = service_info
         if not self._discovered:
             return self.async_abort(reason="no_devices_found")
@@ -139,7 +195,7 @@ class HoermolesConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_credentials(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         return self.async_show_menu(
             step_id="credentials",
-            menu_options=["handoff", "paste", "sensors_only"],
+            menu_options=["handoff", "paste", "register", "sensors_only"],
             description_placeholders={"address": self._address or ""},
         )
 
@@ -221,10 +277,76 @@ class HoermolesConfigFlow(ConfigFlow, domain=DOMAIN):
             description_placeholders={"address": self._address},
         )
 
+    async def async_step_register(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        assert self._address is not None
+        errors: dict[str, str] = {}
+        info = await self._async_advertisement()
+        if user_input is not None:
+            text = user_input[CONF_QR_LABEL]
+            if (label := _parse_qr_label(text)) is None:
+                errors[CONF_QR_LABEL] = "invalid_qr_label"
+            elif (serial_no := self._known_serial(info)) is not None and serial_no != label[1]:
+                errors["base"] = "wrong_device"
+            elif (ble_device := async_ble_device_from_address(self.hass, self._address, connectable=True)) is None:
+                errors["base"] = "no_connectable_path"
+            else:
+                try:
+                    credentials = await async_register(ble_device, self._default_title(), text)
+                except TimeoutError:  # RegistrationTimeout included
+                    errors["base"] = "not_in_teach_mode"
+                except BleakError as exc:
+                    _LOGGER.debug("Registration with %s failed: %s", self._address, exc)
+                    errors["base"] = "cannot_connect"
+                else:
+                    device_info = _device_info_from_qr(self._address, *label)
+                    return await self._async_finish(BundleEntry(credentials=credentials, device_info=device_info))
+        elif info is not None and info.admins_can_be_teached is False:
+            # Only a warning: the flag sits in the status packet, which an idle
+            # drive rarely sends, so it can be stale - trying stays allowed.
+            errors["base"] = "teach_mode_off"
+
+        return self.async_show_form(
+            step_id="register",
+            data_schema=self.add_suggested_values_to_schema(
+                probatio.Schema({probatio.Required(CONF_QR_LABEL): TextSelector(TextSelectorConfig(multiline=True))}),
+                {CONF_QR_LABEL: user_input[CONF_QR_LABEL]} if user_input else {},
+            ),
+            errors=errors,
+            description_placeholders={"address": self._address},
+        )
+
     async def async_step_sensors_only(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         return await self._async_finish(None)
 
     # --- helpers -----------------------------------------------------------
+
+    async def _async_advertisement(self) -> AdvertisementInfo | None:
+        """What the drive advertises, as far as known: the running entry's full
+        parse on reconfigure, the simulator's debug characteristic, otherwise
+        the single discovery packet (rarely enough for the status flags)."""
+        assert self._address is not None
+        if self.source == SOURCE_RECONFIGURE:
+            runtime_data = getattr(self._get_reconfigure_entry(), "runtime_data", None)
+            if runtime_data is not None and runtime_data.coordinator.info is not None:
+                return runtime_data.coordinator.info
+        service_info = async_last_service_info(self.hass, self._address, connectable=False)
+        if (
+            service_info is not None
+            and is_simulator(service_info)
+            and (ble_device := async_ble_device_from_address(self.hass, self._address, connectable=True))
+        ):
+            try:
+                return await async_read_advertisement(ble_device, service_info.rssi)
+            except (BleakError, TimeoutError, ValueError, KeyError) as exc:
+                _LOGGER.debug("Reading the simulator's advertisement failed: %s", exc)
+        return self._info
+
+    def _known_serial(self, info: AdvertisementInfo | None) -> int | None:
+        if info is not None and info.serial_no is not None:
+            return info.serial_no
+        if self.source == SOURCE_RECONFIGURE and (serial_no := self._get_reconfigure_entry().data.get(CONF_SERIAL_NO)):
+            return int(serial_no)
+        return None
 
     def _matching_entry(self, entries: list[BundleEntry]) -> BundleEntry | None:
         assert self._address is not None
