@@ -8,12 +8,15 @@ dependencies = []
 
 [dependency-groups]
 dev = [
-    "hoermoles-ble[bleak]==0.12.1",
+    "hoermoles-ble[bleak]==0.13.1",
     "pytest-homeassistant-custom-component==0.13.374",
     # requirements of the usb integration, which bluetooth depends on
     "aiousbwatcher==1.1.2",
     "serialx==1.11.0",
     "ruff>=0.14",
+    # bleak pulls it in on Linux only; without it the bluetooth integration
+    # can't set up in tests on macOS
+    "dbus-fast==5.2.0",
 ]
 
 [tool.uv]
