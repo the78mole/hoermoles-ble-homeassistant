@@ -20,13 +20,14 @@ from custom_components.hoermoles_ble.const import (
     CHANNEL_PARTIAL,
     CONF_DISCRETE_OPEN_CLOSE,
     CONF_PRODUCT_CLASS,
+    CONF_PRODUCT_ID,
     CONF_PRODUCT_NAME,
     CONF_ROOT_KEY,
     CONF_SERIAL_NO,
     DOMAIN,
 )
 
-from .conftest import ADDRESS, SERIAL, inject, long_packet, short_packet
+from .conftest import ADDRESS, KEY_DATA, SERIAL, inject, long_packet, short_packet
 
 COVER = "cover.garage"
 POSITION = "sensor.garage_position"
@@ -177,9 +178,18 @@ async def test_buttons(
     await hass.async_block_till_done()
     await hass.services.async_call("button", "press", {"entity_id": "button.garage_partial_opening"}, blocking=True)
     send.assert_awaited_once_with(CHANNEL_PARTIAL)
-    assert (
-        entity_registry.async_get("button.garage_light_unverified").disabled_by is er.RegistryEntryDisabler.INTEGRATION
-    )
+    # Light and ventilation follow the app's defaults table: enabled on a Supramatic 4.2.
+    for entity_id in ("button.garage_light_unverified", "button.garage_ventilation_position"):
+        assert entity_registry.async_get(entity_id).disabled_by is None
+        assert hass.states.get(entity_id) is not None
+
+
+async def test_plain_supramatic_4_has_no_ventilation(hass: HomeAssistant, entity_registry: er.EntityRegistry) -> None:
+    entry = MockConfigEntry(domain=DOMAIN, unique_id=ADDRESS, title="Garage", data={**KEY_DATA, CONF_PRODUCT_ID: 1})
+    entry.add_to_hass(hass)
+    await _setup(hass, entry)
+    assert entity_registry.async_get("button.garage_ventilation_position") is None
+    assert entity_registry.async_get("button.garage_light_unverified") is not None
 
 
 async def test_unload(hass: HomeAssistant, entry_with_key: MockConfigEntry) -> None:

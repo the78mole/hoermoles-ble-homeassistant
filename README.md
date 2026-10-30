@@ -34,9 +34,10 @@ cloud, on top of the reverse-engineered
 - A `cover` (garage door). Open, close and stop send the **verified impulse
   channel**. Since impulse is a toggle, the reported position suppresses
   commands that would do the opposite of what was asked.
-- Buttons: impulse, partial opening (verified), ventilation position (verified,
-  disabled by default because not every model has it), light (**unverified**,
-  disabled by default)
+- Buttons: impulse, partial opening (verified), ventilation position (verified;
+  not created for the plain Supramatic 4, product id 1, which has no ventilation
+  position), light (**unverified** on hardware, but channel 2 is *Light* in the
+  official app's channel table for all these drives)
 - Option: use the direction channels 4/5 for open and close (**unverified**)
 
 A drive that is idle sends only half of its advertisement (position, not the
