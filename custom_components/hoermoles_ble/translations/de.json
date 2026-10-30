@@ -12,10 +12,11 @@
         "description": "{name} ({address}) einrichten?"
       },
       "credentials": {
-        "description": "Der Status (Position, Bewegung, Batterie) wird ohne Schlüssel aus dem Advertisement des Antriebs gelesen. Zum Öffnen und Schließen braucht Home Assistant den Schlüssel des Antriebs – registriere den Antrieb einmal mit der hoermoles-ble Web-App oder dem CLI und übergib den Schlüssel dann hier.",
+        "description": "Der Status (Position, Bewegung, Batterie) wird ohne Schlüssel aus dem Advertisement des Antriebs gelesen. Zum Öffnen und Schließen braucht Home Assistant den Schlüssel des Antriebs – registriere den Antrieb einmal mit der hoermoles-ble Web-App oder dem CLI und übergib den Schlüssel dann hier. Oder lass Home Assistant sich selbst registrieren, mit dem QR-Etikett am Antrieb.",
         "menu_options": {
           "handoff": "QR-Code mit der hoermoles-ble Web-App scannen",
           "paste": "Exportierten Schlüssel einfügen (HMOLES1…)",
+          "register": "Mit dem QR-Etikett des Antriebs registrieren (fortgeschritten)",
           "sensors_only": "Nur Sensoren, ohne Schlüssel"
         }
       },
@@ -32,13 +33,24 @@
           "bundle": "Schlüssel-Bundle",
           "passphrase": "Passphrase (nur für verschlüsselte Bundles, HMOLES1E…)"
         }
+      },
+      "register": {
+        "description": "Home Assistant registriert sich mit dem QR-Etikett am Antrieb als neuer Admin des Antriebs {address}. Scanne das Etikett mit dem Handy und füge den Text hier ein (31 Ziffern gefolgt vom Schlüssel des Antriebs, beginnt mit 03).\n\nDer Antrieb nimmt eine Registrierung nur im Lernmodus an: Menü 19, Parameter 02 am Antrieb. **Das löscht alle bisherigen Admins**, z. B. die Hörmann BlueSecur App. Ein Bluetooth-Adapter oder -Proxy, der sich mit dem Antrieb verbinden kann, muss in Reichweite sein.",
+        "data": {
+          "qr_label": "Text des QR-Etiketts"
+        }
       }
     },
     "error": {
       "invalid_bundle": "Das ist kein gültiges hoermoles-Schlüssel-Bundle.",
       "invalid_passphrase": "Das Bundle konnte nicht entschlüsselt werden – falsche Passphrase?",
       "passphrase_required": "Dieses Bundle ist verschlüsselt – bitte die Passphrase eingeben.",
-      "wrong_device": "Das Bundle enthält keinen Schlüssel für diesen Antrieb.",
+      "wrong_device": "Dieses Schlüssel-Bundle oder QR-Etikett gehört zu einem anderen Antrieb.",
+      "invalid_qr_label": "Das ist kein QR-Etikett eines Antriebs: 31 Ziffern gefolgt vom öffentlichen Schlüssel des Antriebs.",
+      "teach_mode_off": "Der Antrieb meldet, dass er nicht im Lernmodus ist. Aktiviere ihn zuerst am Antrieb: Menü 19, Parameter 02. Die Meldung kann veraltet sein, du kannst es trotzdem versuchen.",
+      "not_in_teach_mode": "Der Antrieb hat auf die Registrierung nicht geantwortet – vermutlich ist er nicht im Lernmodus. Aktiviere ihn am Antrieb (Menü 19, Parameter 02) und versuche es erneut.",
+      "no_connectable_path": "Kein Bluetooth-Adapter oder -Proxy in Reichweite, der sich mit dem Antrieb verbinden kann.",
+      "cannot_connect": "Keine Verbindung zum Antrieb. Versuche es erneut, bei Bedarf näher am Antrieb.",
       "not_received": "Noch kein Schlüssel empfangen. Erst den QR-Code scannen und in der Web-App bestätigen.",
       "url_required": "Gib die Adresse an, unter der das Handy Home Assistant erreicht."
     },

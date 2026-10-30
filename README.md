@@ -70,11 +70,17 @@ Then choose how the key gets into Home Assistant:
 2. **Paste an exported key**, from `hoermoles-ble export --stdout` (CLI) or the
    web app's *Export* tab. `HMOLES1E:…` bundles additionally ask for their
    passphrase.
-3. **Sensors only.** Add a key later via the entry's *Reconfigure*.
+3. **Register with the drive's QR label** (advanced). Scan the label on the
+   drive with your phone and paste its text (31 digits followed by the drive's
+   public key). Home Assistant then registers itself as a new admin over
+   Bluetooth and stores the key. The drive must be in teach mode first: menu 19,
+   parameter 02, which **deletes all existing admins** (e.g. the Hörmann
+   BlueSecur app). A drive outside teach mode doesn't answer; HA gives up after
+   10 s with a hint. Needs a connectable adapter or proxy in range.
+4. **Sensors only.** Add a key later via the entry's *Reconfigure*.
 
-The drive must be registered once, with the
-[CLI](https://pypi.org/project/hoermoles-ble-cli/) or the web app. Registration
-from within Home Assistant is not supported (yet).
+Options 1 and 2 need a drive registered once with the
+[CLI](https://pypi.org/project/hoermoles-ble-cli/) or the web app.
 
 ## Security
 

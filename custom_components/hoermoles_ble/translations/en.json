@@ -12,10 +12,11 @@
         "description": "Set up {name} ({address})?"
       },
       "credentials": {
-        "description": "Status (position, movement, battery) is read from the drive's advertisement without any key. To open and close the door, Home Assistant needs the drive's key - register the drive once with the hoermoles-ble web app or CLI, then hand the key over here.",
+        "description": "Status (position, movement, battery) is read from the drive's advertisement without any key. To open and close the door, Home Assistant needs the drive's key - register the drive once with the hoermoles-ble web app or CLI, then hand the key over here. Or let Home Assistant register itself, with the QR label on the drive.",
         "menu_options": {
           "handoff": "Scan a QR code with the hoermoles-ble web app",
           "paste": "Paste an exported key (HMOLES1…)",
+          "register": "Register with the drive's QR label (advanced)",
           "sensors_only": "Sensors only, no key"
         }
       },
@@ -32,13 +33,24 @@
           "bundle": "Key bundle",
           "passphrase": "Passphrase (only for encrypted bundles, HMOLES1E…)"
         }
+      },
+      "register": {
+        "description": "Home Assistant registers itself as a new admin of the drive {address}, using the QR label on the drive. Scan the label with your phone and paste the text here (31 digits followed by the drive's key, starting with 03).\n\nThe drive only accepts a registration in teach mode: menu 19, parameter 02 on the drive. **This deletes all existing admins**, e.g. the Hörmann BlueSecur app. A Bluetooth adapter or proxy that can connect to the drive must be in range.",
+        "data": {
+          "qr_label": "QR label text"
+        }
       }
     },
     "error": {
       "invalid_bundle": "This is not a valid hoermoles key bundle.",
       "invalid_passphrase": "Could not decrypt the bundle - wrong passphrase?",
       "passphrase_required": "This bundle is encrypted - enter its passphrase.",
-      "wrong_device": "The bundle does not contain a key for this drive.",
+      "wrong_device": "This key bundle or QR label is for a different drive.",
+      "invalid_qr_label": "This is not a drive QR label: 31 digits followed by the drive's public key.",
+      "teach_mode_off": "The drive reports that it is not in teach mode. Enable it on the drive first: menu 19, parameter 02. The report can be out of date, so you can still try.",
+      "not_in_teach_mode": "The drive did not answer the registration - it is most likely not in teach mode. Enable it on the drive (menu 19, parameter 02) and try again.",
+      "no_connectable_path": "No Bluetooth adapter or proxy that can connect to the drive is in range.",
+      "cannot_connect": "Could not connect to the drive. Try again, closer to the drive if needed.",
       "not_received": "No key received yet. Scan the QR code and confirm in the web app first.",
       "url_required": "Enter the address under which the phone reaches Home Assistant."
     },

@@ -17,10 +17,18 @@ dev = [
     # bleak pulls it in on Linux only; without it the bluetooth integration
     # can't set up in tests on macOS
     "dbus-fast==5.2.0",
+    # simulated drive, a real protocol peer for the registration tests
+    "hoerfrau",
 ]
 
 [tool.uv]
 package = false
+# hoerfrau (the drive simulator, tests only) asks for cryptography>=50.0.2,
+# Home Assistant's test package pins 50.0.1 - Home Assistant's pin wins.
+override-dependencies = ["cryptography==50.0.1"]
+
+[tool.uv.sources]
+hoerfrau = { git = "https://github.com/DennyWeinberg/hoerfrau-ble" }
 
 [tool.ruff]
 line-length = 120
