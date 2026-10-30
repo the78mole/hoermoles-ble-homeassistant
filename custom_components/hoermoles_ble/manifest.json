@@ -4,6 +4,9 @@
   "bluetooth": [
     {
       "manufacturer_id": 1972
+    },
+    {
+      "local_name": "HFSIM*"
     }
   ],
   "codeowners": ["@the78mole"],

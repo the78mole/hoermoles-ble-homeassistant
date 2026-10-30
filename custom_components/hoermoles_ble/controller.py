@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from typing import TYPE_CHECKING
 
 from bleak.backends.device import BLEDevice
 from bleak.exc import BleakError
@@ -22,11 +23,17 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 
 from .const import CONTROL_TIMEOUT, DOMAIN, REGISTER_TIMEOUT
+from .simulator import POLL_AFTER_COMMAND, async_prefer_le, is_simulator
+
+if TYPE_CHECKING:
+    from .coordinator import HoermolesCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
 
 async def open_transport(ble_device: BLEDevice, name: str) -> BleTransport:
+    if is_simulator(ble_device):
+        await async_prefer_le(ble_device)
     client = await establish_connection(BleakClientWithServiceCache, ble_device, name, max_attempts=3)
     return BleakTransport.from_client(client, on_log=_LOGGER.debug)
 
@@ -48,11 +55,15 @@ async def async_register(ble_device: BLEDevice, name: str, qr_text: str) -> Cred
 class DriveController:
     """Sends channel commands to one drive."""
 
-    def __init__(self, hass: HomeAssistant, credentials: Credentials, name: str) -> None:
+    def __init__(
+        self, hass: HomeAssistant, credentials: Credentials, name: str, coordinator: HoermolesCoordinator | None = None
+    ) -> None:
         self._hass = hass
         self._credentials = credentials
         self._name = name
-        self._lock = asyncio.Lock()
+        self._coordinator = coordinator
+        # Shared with the coordinator's simulator reads - BlueZ takes one connection per device.
+        self._lock = coordinator.connection_lock if coordinator else asyncio.Lock()
 
     @property
     def address(self) -> str:
@@ -70,6 +81,8 @@ class DriveController:
             try:
                 async with asyncio.timeout(CONTROL_TIMEOUT):
                     await self._send(ble_device, channel)
+                if self._coordinator is not None:
+                    self._coordinator.async_poll_simulator_soon(POLL_AFTER_COMMAND)
             except (BleakError, TimeoutError) as exc:
                 raise HomeAssistantError(
                     translation_domain=DOMAIN,

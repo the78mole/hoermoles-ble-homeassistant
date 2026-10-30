@@ -6,19 +6,26 @@ Home Assistant hands us one manufacturer-data payload per advertisement - so
 the latest payload of each kind is kept and both are parsed together, exactly
 what `AdvertisementInfo.from_scan` expects. An idle drive sends only the long
 packet for minutes on end, hence the status flags can be old; see `moving`.
+
+The simulator (HFSIM..., see simulator.py) can't send manufacturer data: once
+one of its advertisements shows up, the same two packets are read from its
+debug characteristic on a timer instead.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 
+from bleak.exc import BleakError
 from hoermoles_ble import AdvertisementInfo
 from hoermoles_ble.advertisement import LONG_PACKET_MIN_LEN
 from homeassistant.components.bluetooth import (
     BluetoothChange,
     BluetoothScanningMode,
     BluetoothServiceInfoBleak,
+    async_ble_device_from_address,
 )
 from homeassistant.components.bluetooth.passive_update_coordinator import PassiveBluetoothDataUpdateCoordinator
 from homeassistant.config_entries import ConfigEntry
@@ -35,6 +42,12 @@ from .const import (
     MANUFACTURER_ID,
     POSITION_SETTLE_TIME,
     STATUS_PACKET_TTL,
+)
+from .simulator import (
+    POLL_INTERVAL_IDLE,
+    POLL_INTERVAL_MOVING,
+    async_read_packets,
+    is_simulator,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -64,6 +77,10 @@ class HoermolesCoordinator(PassiveBluetoothDataUpdateCoordinator):
         self._position_time = 0.0
         self.direction = 0  # +1 opening, -1 closing, 0 unknown/idle
         self._cancel_recheck: CALLBACK_TYPE | None = None
+        # One BLE connection per drive at a time: commands and simulator reads.
+        self.connection_lock = asyncio.Lock()
+        self._simulator_rssi: int | None = None  # set once the drive turned out to be the simulator
+        self._cancel_simulator_poll: CALLBACK_TYPE | None = None
 
     @property
     def position(self) -> float | None:
@@ -88,14 +105,54 @@ class HoermolesCoordinator(PassiveBluetoothDataUpdateCoordinator):
     @callback
     def _async_handle_bluetooth_event(self, service_info: BluetoothServiceInfoBleak, change: BluetoothChange) -> None:
         if (payload := service_info.manufacturer_data.get(MANUFACTURER_ID)) is not None:
-            if len(payload) >= LONG_PACKET_MIN_LEN:
-                self._long_packet = payload
-            else:
-                self._short_packet = payload
-                self._short_packet_time = time.monotonic()
+            self._store_packet(payload)
             self._update_info(service_info.rssi)
             self._schedule_recheck()
+        elif is_simulator(service_info):
+            first = self._simulator_rssi is None
+            self._simulator_rssi = service_info.rssi
+            if first:
+                self.async_poll_simulator_soon(0)
         super()._async_handle_bluetooth_event(service_info, change)
+
+    def _store_packet(self, payload: bytes) -> None:
+        if len(payload) >= LONG_PACKET_MIN_LEN:
+            self._long_packet = payload
+        else:
+            self._short_packet = payload
+            self._short_packet_time = time.monotonic()
+
+    # --- simulator ---------------------------------------------------------
+
+    @callback
+    def async_poll_simulator_soon(self, delay: float) -> None:
+        """(Re)schedule the next read of the simulator's packets; no-op for a real drive."""
+        if self._simulator_rssi is None:
+            return
+        if self._cancel_simulator_poll is not None:
+            self._cancel_simulator_poll()
+        self._cancel_simulator_poll = async_call_later(self.hass, delay, self._async_start_simulator_poll)
+
+    @callback
+    def _async_start_simulator_poll(self, _now) -> None:
+        self._cancel_simulator_poll = None
+        # Background task of the entry: cancelled on unload, even mid-connection.
+        self.entry.async_create_background_task(self.hass, self._async_poll_simulator(), "hoermoles_ble simulator poll")
+
+    async def _async_poll_simulator(self) -> None:
+        try:
+            if ble_device := async_ble_device_from_address(self.hass, self.address, connectable=True):
+                async with self.connection_lock:
+                    packets = await async_read_packets(ble_device)
+                for packet in packets:
+                    self._store_packet(packet)
+                self._update_info(self._simulator_rssi or 0)
+                self._schedule_recheck()
+                self.async_update_listeners()
+        except (BleakError, TimeoutError, ValueError, KeyError) as exc:
+            _LOGGER.debug("Reading the simulator's packets failed: %s", exc)
+        if self._cancel_simulator_poll is None:  # a command may have asked for an earlier read
+            self.async_poll_simulator_soon(POLL_INTERVAL_MOVING if self.moving else POLL_INTERVAL_IDLE)
 
     def _schedule_recheck(self) -> None:
         """Bluetooth only calls back on *changed* advertisements, and a resting
@@ -128,6 +185,10 @@ class HoermolesCoordinator(PassiveBluetoothDataUpdateCoordinator):
         if self._cancel_recheck is not None:
             self._cancel_recheck()
             self._cancel_recheck = None
+        if self._cancel_simulator_poll is not None:
+            self._cancel_simulator_poll()
+            self._cancel_simulator_poll = None
+        self._simulator_rssi = None
         super()._async_stop()
 
     def _update_info(self, rssi: int) -> None:

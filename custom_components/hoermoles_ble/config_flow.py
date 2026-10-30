@@ -33,6 +33,7 @@ from homeassistant.components.bluetooth import (
     BluetoothServiceInfoBleak,
     async_ble_device_from_address,
     async_discovered_service_info,
+    async_last_service_info,
 )
 from homeassistant.config_entries import (
     SOURCE_RECONFIGURE,
@@ -67,6 +68,7 @@ from .const import (
 )
 from .controller import async_register
 from .handoff import HandoffSession, async_get_registry
+from .simulator import async_read_advertisement, is_simulator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -91,6 +93,8 @@ def _product_data(info: AdvertisementInfo | None) -> dict[str, Any]:
 
 
 def _parse_service_info(service_info: BluetoothServiceInfoBleak) -> AdvertisementInfo | None:
+    # The simulator sends no manufacturer data: None here, its advertisement is
+    # read over GATT where it matters (see _async_advertisement).
     payload = service_info.manufacturer_data.get(MANUFACTURER_ID)
     if payload is None:
         return None
@@ -169,7 +173,8 @@ class HoermolesConfigFlow(ConfigFlow, domain=DOMAIN):
 
         configured = self._async_current_ids(include_ignore=False)
         for service_info in async_discovered_service_info(self.hass, connectable=False):
-            if MANUFACTURER_ID in service_info.manufacturer_data and service_info.address not in configured:
+            is_drive = MANUFACTURER_ID in service_info.manufacturer_data or is_simulator(service_info)
+            if is_drive and service_info.address not in configured:
                 self._discovered[service_info.address] = service_info
         if not self._discovered:
             return self.async_abort(reason="no_devices_found")
@@ -317,12 +322,23 @@ class HoermolesConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def _async_advertisement(self) -> AdvertisementInfo | None:
         """What the drive advertises, as far as known: the running entry's full
-        parse on reconfigure, otherwise the single discovery packet (rarely
-        enough for the status flags)."""
+        parse on reconfigure, the simulator's debug characteristic, otherwise
+        the single discovery packet (rarely enough for the status flags)."""
+        assert self._address is not None
         if self.source == SOURCE_RECONFIGURE:
             runtime_data = getattr(self._get_reconfigure_entry(), "runtime_data", None)
             if runtime_data is not None and runtime_data.coordinator.info is not None:
                 return runtime_data.coordinator.info
+        service_info = async_last_service_info(self.hass, self._address, connectable=False)
+        if (
+            service_info is not None
+            and is_simulator(service_info)
+            and (ble_device := async_ble_device_from_address(self.hass, self._address, connectable=True))
+        ):
+            try:
+                return await async_read_advertisement(ble_device, service_info.rssi)
+            except (BleakError, TimeoutError, ValueError, KeyError) as exc:
+                _LOGGER.debug("Reading the simulator's advertisement failed: %s", exc)
         return self._info
 
     def _known_serial(self, info: AdvertisementInfo | None) -> int | None:
