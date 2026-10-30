@@ -3,6 +3,7 @@
 The drive tears the link down ~100-150 ms after the first chunk of a command,
 so a connection is never held: connect, wait for the challenge, send, leave.
 The per-drive lock keeps two button presses from colliding on one drive.
+Registration with the QR label is the same kind of exchange, just longer.
 """
 
 from __future__ import annotations
@@ -10,17 +11,38 @@ from __future__ import annotations
 import asyncio
 import logging
 
+from bleak.backends.device import BLEDevice
 from bleak.exc import BleakError
 from bleak_retry_connector import BleakClientWithServiceCache, establish_connection
 from hoermoles_ble import Credentials, HoermannClient
 from hoermoles_ble.ble_transport import BleakTransport
+from hoermoles_ble.transport import BleTransport
 from homeassistant.components import bluetooth
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 
-from .const import CONTROL_TIMEOUT, DOMAIN
+from .const import CONTROL_TIMEOUT, DOMAIN, REGISTER_TIMEOUT
 
 _LOGGER = logging.getLogger(__name__)
+
+
+async def open_transport(ble_device: BLEDevice, name: str) -> BleTransport:
+    client = await establish_connection(BleakClientWithServiceCache, ble_device, name, max_attempts=3)
+    return BleakTransport.from_client(client, on_log=_LOGGER.debug)
+
+
+async def async_register(ble_device: BLEDevice, name: str, qr_text: str) -> Credentials:
+    """Register as a new admin with the drive's QR label. Only works while the
+    drive is in teach mode (menu 19 / parameter 02); outside it the drive stays
+    silent, which ends in TimeoutError after REGISTER_TIMEOUT."""
+    transport = await open_transport(ble_device, name)
+    async with HoermannClient(transport, on_log=_LOGGER.debug) as hoermann:
+        try:
+            await hoermann.wait_for_any_notification(timeout=10.0)
+        except TimeoutError:
+            _LOGGER.debug("No initial challenge from %s, trying anyway", ble_device.address)
+        async with asyncio.timeout(REGISTER_TIMEOUT):
+            return await hoermann.register(qr_text, ble_device.address, timeout=REGISTER_TIMEOUT)
 
 
 class DriveController:
@@ -56,8 +78,7 @@ class DriveController:
                 ) from exc
 
     async def _send(self, ble_device, channel: int) -> None:
-        client = await establish_connection(BleakClientWithServiceCache, ble_device, self._name, max_attempts=3)
-        transport = BleakTransport.from_client(client, on_log=_LOGGER.debug)
+        transport = await open_transport(ble_device, self._name)
         async with HoermannClient(transport, on_log=_LOGGER.debug) as hoermann:
             try:
                 await hoermann.wait_for_any_notification(timeout=10.0)
